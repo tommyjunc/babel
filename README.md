@@ -109,6 +109,26 @@ python -m src.visualization --results-dir results
 
 The workflow creates five PNG figures in `results/figures/`: tower progress over time, communication success by linguistic distance, tower progress by platform diversity, tower progress by interoperability, and a tower-progress heatmap across linguistic distance × interoperability. Error bars, where present, show run-to-run standard deviation. If the LLM-system experiment summaries exist, three more figures are written: `tower_progress_by_llm_system_mix.png`, `tower_progress_by_llm_compatibility.png` and `cross_system_success_by_llm_compatibility.png`; otherwise they are skipped.
 
+## Animations
+
+Render GIFs of two abstract scenarios from the repository root:
+
+```bash
+python -m src.animation --scenario baseline --output-dir results/figures
+python -m src.animation --scenario stall --output-dir results/figures
+python -m src.animation --all   # both presets with default file names
+```
+
+Defaults write `tower_construction_baseline.gif` and `tower_coordination_stall_low_compatibility.gif` to `results/figures/`. Options: `--num-agents`, `--num-steps`, `--seed`, `--frame-interval` (ms), `--output` (single explicit `.gif` path) and `--output-dir`. Fill colour shows language, marker shape shows the abstract LLM system, and dashed edges are failed interactions. Tower progress is monotonic, so the stall scenario shows a loss of coordinated construction capacity (low construction rate, many failures), never a shrinking tower. The scenarios are abstract and say nothing about real LLM platforms.
+
+## Quarto report
+
+`reports/babel_analysis.qmd` is a publication-oriented report (research question, mechanism, interpretation guide, limitations). It reads existing `results/*.csv` and figures when present and renders without them. Rendering requires a [Quarto](https://quarto.org) installation and a Jupyter kernel for Python (`python -m pip install jupyter`); it is not needed for the rest of the project.
+
+```bash
+quarto render reports/babel_analysis.qmd
+```
+
 ## Notebook
 
 Open `notebooks/01_baseline.ipynb` from the repository root to run a baseline, inspect its data and summary, and plot the tower trajectory. It imports the same modules used by the command-line workflow.

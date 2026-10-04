@@ -1,0 +1,217 @@
+---
+title: "The Babel Problem: Linguistic Differentiation, AI Mediation, and Coordination in an Abstract Agent-Based Model"
+subtitle: "Analysis report for The Babel Machine"
+format:
+  html:
+    toc: true
+    number-sections: true
+    embed-resources: true
+    code-fold: true
+jupyter: python3
+execute:
+  echo: true
+  warning: false
+---
+
+# Research question
+
+How do differentiated AI-mediated linguistic environments affect coordination on a shared project?
+
+The Babel Machine is a small, transparent agent-based model (ABM) built with Mesa. Agents pursue one common project, building a tower, but communicate through conventions attached to different platforms and, optionally, through abstract "systems" that mediate their messages. The model is a **thought experiment**: it shows what follows from explicitly stated rules, not what happens in the world.
+
+# Simulation mechanism
+
+Agents sit on a fixed social graph. In each step every edge is attempted once. A communication attempt succeeds with some probability; after a success the pair cooperates with probability given by the mean of their cooperation tendencies, and a cooperating pair adds the mean of its skill levels to the tower. Tower progress is therefore a **cumulative, monotonic** quantity.
+
+## Linguistic and platform parameters
+
+These parameters belong to the core model:
+
+- `num_platforms`: how many platform conventions are represented.
+- `linguistic_distance`: strength of the penalty when two agents use different languages.
+- `platform_drift`: per-step probability that an agent adopts its platform's convention.
+- `interoperability`: translation or interoperation that offsets the linguistic penalty (1 removes it).
+- network topology and density, and `cooperation_tendency`.
+
+Agents with matching languages communicate successfully with probability 0.9; otherwise with probability `max(0, 0.9 - linguistic_distance * (1 - interoperability))`.
+
+## Optional abstract LLM-system compatibility layer
+
+Separately, each agent carries an `llm_system_id`, an abstract categorical label (`system_a`, `system_b`, ...). A symmetric compatibility matrix with entries in [0, 1] multiplies the linguistic success probability. With one system, or with compatibility 1, the layer has no effect. It is a single probability multiplier; it models neither capability, translation quality, nor learning. The labels do **not** denote real vendors or models, and no external LLM API is called.
+
+# Reproducibility
+
+Run these commands from the repository root after `python -m pip install -r requirements.txt`:
+
+```bash
+# 1. Baseline run
+python -m src.babel_model --output results/baseline.csv
+# 2. Experiments (writes results/*_runs.csv and results/*_summary.csv)
+python -m src.experiments --output-dir results
+# 3. Static figures (results/figures/*.png)
+python -m src.visualization --results-dir results
+# 4. Animations (results/figures/*.gif)
+python -m src.animation --all --output-dir results/figures
+# 5. Render this report (requires a Quarto installation)
+quarto render reports/babel_analysis.qmd
+```
+
+Runs are deterministic given a configuration and seed. This document reads whatever `results/` files exist and skips the rest, so it renders before any data are generated.
+
+```{python}
+#| label: setup
+import os
+from pathlib import Path
+
+import pandas as pd
+from IPython.display import Markdown, display
+
+
+def find_root():
+    here = Path.cwd().resolve()
+    for candidate in (here, *here.parents):
+        if (candidate / "src" / "babel_model.py").exists():
+            return candidate
+    return here
+
+
+ROOT = find_root()
+RESULTS = ROOT / "results"
+FIGURES = RESULTS / "figures"
+
+
+def show_summary(name, columns):
+    path = RESULTS / f"{name}_summary.csv"
+    if not path.exists():
+        display(Markdown(
+            f"*`results/{name}_summary.csv` not found; run "
+            "`python -m src.experiments --output-dir results` first.*"
+        ))
+        return
+    frame = pd.read_csv(path)
+    display(frame[[c for c in columns if c in frame.columns]].round(3))
+
+
+def show_figure(filename, caption):
+    path = FIGURES / filename
+    if path.exists():
+        display(Markdown(f"![{caption}]({Path(os.path.relpath(path)).as_posix()})"))
+    else:
+        display(Markdown(
+            f"*Figure `{filename}` not found; run the commands in the "
+            "reproducibility section first.*"
+        ))
+```
+
+# Results
+
+All values below are consequences of the model's rules for the sampled parameters and seeds. Aggregates are descriptive means and standard deviations, not significance tests.
+
+## Linguistic divergence, platforms, and interoperability
+
+```{python}
+#| label: tbl-divergence
+#| tbl-cap: "Tower progress by linguistic distance (mean and standard deviation across seeds; abstract model)."
+show_summary("linguistic_divergence", [
+    "linguistic_distance", "tower_progress_mean", "tower_progress_std",
+    "communication_success_rate_mean", "number_of_runs",
+])
+```
+
+```{python}
+#| label: fig-distance
+#| fig-cap: "Communication success by linguistic distance in the abstract model."
+show_figure("communication_success_by_linguistic_distance.png",
+            "Communication success by linguistic distance in the abstract model.")
+```
+
+```{python}
+#| label: fig-interop
+#| fig-cap: "Tower progress by interoperability in the abstract model."
+show_figure("tower_progress_by_interoperability.png",
+            "Tower progress by interoperability in the abstract model.")
+```
+
+```{python}
+#| label: fig-heatmap
+#| fig-cap: "Tower progress across linguistic distance and interoperability (abstract model)."
+show_figure("tower_progress_distance_interoperability_heatmap.png",
+            "Tower progress across linguistic distance and interoperability (abstract model).")
+```
+
+## Abstract LLM-system compatibility
+
+```{python}
+#| label: tbl-compat
+#| tbl-cap: "Two abstract systems: tower progress and cross-system success by compatibility."
+show_summary("llm_compatibility", [
+    "llm_cross_compatibility", "tower_progress_mean", "tower_progress_std",
+    "cross_system_success_rate_mean", "number_of_runs",
+])
+```
+
+```{python}
+#| label: fig-compat
+#| fig-cap: "Tower progress by cross-system compatibility between abstract systems (not real platforms)."
+show_figure("tower_progress_by_llm_compatibility.png",
+            "Tower progress by cross-system compatibility between abstract systems (not real platforms).")
+```
+
+```{python}
+#| label: fig-mix
+#| fig-cap: "Tower progress by number of abstract systems at fixed cross-system compatibility."
+show_figure("tower_progress_by_llm_system_mix.png",
+            "Tower progress by number of abstract systems at fixed cross-system compatibility.")
+```
+
+## Animations
+
+The animation module renders two scenarios. The stall scenario depicts **loss of coordinated construction capacity** (few newly completed levels, a low construction rate, many failed interactions). Because tower progress is monotonic, the tower is never shown shrinking.
+
+```{python}
+#| label: fig-animations
+#| fig-cap: "Animated scenarios. Left: construction baseline. Right: coordination stall with low cross-compatibility among abstract systems. Fill colour is language, shape is abstract system, dashed edges are failed interactions."
+names = [
+    "tower_construction_baseline.gif",
+    "tower_coordination_stall_low_compatibility.gif",
+]
+for name in names:
+    show_figure(name, name.removesuffix(".gif").replace("_", " "))
+```
+
+# Interpretation guide
+
+Read results against these patterns. They are interpretive heuristics for the abstract model, not tested thresholds.
+
+| Pattern in results | Interpretation |
+| --- | --- |
+| High compatibility with heterogeneous systems (or platforms) and tower progress near the homogeneous case | **Productive pluralism**: differentiation coexists with coordination. |
+| Intermediate compatibility, with noticeably higher failure rates and slower but nonzero construction | **Coordination friction**: cooperation is possible but costly. |
+| Low compatibility, with high failure share and a low construction rate | **Computational Babel**: the common project is starved of coordinated effort. |
+| Recovery of progress as interoperability or compatibility rises, or as drift aligns conventions | **Adaptation or interoperability**, not a failed hypothesis; it shows the mechanism that restores coordination. |
+
+Two cautions apply. Because tower progress is cumulative, a stall appears as a falling *rate* of construction, not as a falling tower. And because compatibility enters as a multiplier, any ordering of outcomes follows directly from the stated rules; the informative question is where the transitions lie under particular assumptions.
+
+# Language-games and political coordination
+
+Wittgenstein's *Philosophical Investigations* approaches meaning through use and begins with builders whose small vocabulary coordinates construction. The Babel Machine borrows that picture as a heuristic: communication is an activity embedded in a shared project, so changes in the rules of communication change the possibilities for joint action.
+
+| Theoretical idea | Model analogue (a loose operationalization) |
+| --- | --- |
+| Language-game | Communication and cooperation rules |
+| Convention | Shared language or platform convention |
+| Linguistic drift | Drift toward platform convention |
+| Translation | Interoperability and compatibility parameters |
+| Collective action | Tower progress |
+
+The mapping is an analogy. A categorical language label and a success probability do not capture rule-following, forms of life, or the contested character of political concepts such as freedom or justice. Political coordination in practice involves interests, institutions, power, and disagreement that the model omits. The model can at most clarify one question: under stated assumptions, at what point does differentiation stop being compatible with sustained joint action, and which mechanisms restore it?
+
+The framing also suggests that productive plurality and fragmentation are different regimes, not different amounts of the same thing. This model can mark where the regimes may differ under its assumptions; it cannot establish where they differ in political life.
+
+# Limitations
+
+- `llm_system_id` labels are abstract. **Do not treat them as real vendors or models.** No external APIs are called and no real LLM behaviour is measured.
+- Results support **no empirical, causal, or predictive inference** about existing AI systems or societies.
+- **Tower construction is an abstract proxy for collective action**, and tower progress is monotonic.
+- Languages are categorical; the graph is static; every edge is attempted each step; skills and cooperation are simple fixed quantities; compatibility is a symmetric probability multiplier.
+- Findings depend on the parameters, seeds, and run lengths chosen, and aggregates here are descriptive.
