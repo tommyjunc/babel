@@ -35,6 +35,29 @@ Collective action depends in part on whether participants can communicate well e
 | `random_seed` | 42 | Seed for model, Python/Mesa, NumPy, and NetworkX randomness. |
 | `topology` | `small_world` | Network topology: `small_world` or `erdos_renyi`. |
 
+## LLM-system layer (optional abstraction)
+
+Each agent also has a categorical `llm_system_id`, an **abstract label** (default `system_a`, `system_b`, …) for the AI system that mediates its communication. These labels are illustrative placeholders; they do not refer to, or make claims about, any real vendor or model. **This mode does not call any external LLM API and does not establish empirical performance comparisons**: it only adds one more categorical source of communication friction.
+
+- Communication success is `linguistic probability × llm_compatibility[system_i][system_j]`, where the linguistic probability is the rule described above.
+- By default there is one system and compatibility is 1, so no penalty applies and results for the original columns are identical to the model without this layer. Differentiation is opt-in.
+- The compatibility matrix is a probability matrix that must be complete (every pair of systems) and **symmetric** (no directional compatibility); each value must lie in [0, 1]. Without an explicit matrix, the diagonal is 1 and every off-diagonal value is `llm_cross_compatibility`.
+- Agents are assigned to systems by `llm_system_allocation` (counts summing to `num_agents`) or, by default, an even split. The (seeded) assignment shuffle uses its own random stream, so other random draws are unchanged by adding systems.
+
+| Parameter | CLI option | Default | Meaning |
+| --- | --- | ---: | --- |
+| `llm_systems` | `--llm-systems a,b` | `system_a` | Unique, non-empty system labels. |
+| `llm_system_allocation` | `--llm-allocation a:30,b:20` | even split | Agents per system; must list every system and sum to `num_agents`. |
+| `llm_cross_compatibility` | `--llm-cross-compatibility 0.5` | 1 (no penalty) | Compatibility between different systems, 0–1. |
+| `llm_compatibility_matrix` | `--llm-compatibility-matrix '[[1,0.4],[0.4,1]]'` or `@matrix.json` | none | Full symmetric matrix as nested object (`{"a": {"b": 0.4, ...}}`) or rows in `llm_systems` order. Exclusive with `llm_cross_compatibility`. |
+
+```bash
+python -m src.babel_model --llm-systems system_a,system_b \
+  --llm-allocation system_a:30,system_b:20 --llm-cross-compatibility 0.5
+```
+
+Per-agent communication histories record `llm_system_id` and `partner_llm_system_id`. Four columns are appended to the per-step CSV: `number_of_llm_systems`, `cross_system_successful_communications`, `cross_system_failed_communications`, and `cross_system_success_rate` (0 when no cross-system communication occurred). The summary JSON adds the same final metrics plus the serialized `llm_systems`, `llm_system_allocation`, `llm_cross_compatibility` and `llm_compatibility_matrix`.
+
 ## Installation
 
 From the repository root, install the pinned dependencies:
@@ -59,7 +82,7 @@ python -m src.babel_model --num-agents 50 --num-steps 100 --num-platforms 2 \
 
 ## Run experiments
 
-Run the four requested one-factor sweeps and a distance-by-interoperability grid used for the heatmap:
+Run the four one-factor sweeps, a distance-by-interoperability grid used for the heatmap, and two LLM-system experiments:
 
 ```bash
 python -m src.experiments --output-dir results
@@ -74,6 +97,8 @@ python -m src.experiments --experiment linguistic_divergence \
 
 Each sweep writes a raw run-level CSV and an aggregated CSV (mean, standard deviation, and number of runs) to `results/`. The divergence experiment holds the platform count at two. Platform proliferation varies the platform count. The grid sweep crosses linguistic distance and interoperability. Aggregates are descriptive, not tests of statistical significance.
 
+The LLM-system experiments are `llm_system_mix` (homogeneous vs mixed populations of 1, 2 or 3 abstract systems at an even split, cross-system compatibility fixed at 0.5; `--llm-system-counts 1,2,3`) and `llm_compatibility` (two systems, cross-system compatibility swept; `--llm-compatibility-values 0,0.25,0.5,0.75,1`). They write `llm_system_mix_*.csv` and `llm_compatibility_*.csv`; their summaries add mean/std of `cross_system_success_rate` and the mean number of represented systems. The mean cross-system rate counts runs with no cross-system communication (e.g. a single system) as 0.
+
 ## Reproduce figures
 
 First run the baseline and experiment commands above, then:
@@ -82,7 +107,7 @@ First run the baseline and experiment commands above, then:
 python -m src.visualization --results-dir results
 ```
 
-The workflow creates five PNG figures in `results/figures/`: tower progress over time, communication success by linguistic distance, tower progress by platform diversity, tower progress by interoperability, and a tower-progress heatmap across linguistic distance × interoperability. Error bars, where present, show run-to-run standard deviation.
+The workflow creates five PNG figures in `results/figures/`: tower progress over time, communication success by linguistic distance, tower progress by platform diversity, tower progress by interoperability, and a tower-progress heatmap across linguistic distance × interoperability. Error bars, where present, show run-to-run standard deviation. If the LLM-system experiment summaries exist, three more figures are written: `tower_progress_by_llm_system_mix.png`, `tower_progress_by_llm_compatibility.png` and `cross_system_success_by_llm_compatibility.png`; otherwise they are skipped.
 
 ## Notebook
 
@@ -95,6 +120,8 @@ Open `notebooks/01_baseline.ipynb` from the repository root to run a baseline, i
 ## Known limitations
 
 The language representation is categorical and the cross-language penalty is deliberately simple. The network is static, every edge is attempted each round, skills are fixed, and cooperation is a single probability. The platform convention is not learned except through the explicit drift rule. This is a thought experiment for exploring assumptions, not an empirically calibrated forecast.
+
+The LLM-system layer is a single symmetric probability multiplier on communication; it does not model capability, translation quality, learning, or any real system. Results from it are consequences of the stated rules, not empirical comparisons.
 
 ## Interpretation
 

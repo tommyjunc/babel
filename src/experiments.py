@@ -14,6 +14,15 @@ DEFAULT_VALUES = {
     "platform_proliferation": [1, 2, 5, 10, 20],
     "interoperability": [0.0, 0.25, 0.5, 0.75, 1.0],
     "drift": [0.0, 0.01, 0.05, 0.1, 0.25],
+    "llm_system_mix": [1, 2, 3],
+    "llm_compatibility": [0.0, 0.25, 0.5, 0.75, 1.0],
+}
+LLM_SYSTEM_LABELS = ("system_a", "system_b", "system_c", "system_d")
+LLM_MIX_CROSS_COMPATIBILITY = 0.5
+LLM_EXTRA_AGGREGATES = {
+    "cross_system_success_rate_mean": ("cross_system_success_rate", "mean"),
+    "cross_system_success_rate_std": ("cross_system_success_rate", "std"),
+    "number_of_llm_systems_mean": ("number_of_llm_systems", "mean"),
 }
 EXPERIMENTS = (
     "linguistic_divergence",
@@ -21,10 +30,33 @@ EXPERIMENTS = (
     "interoperability",
     "drift",
     "distance_interoperability",
+    "llm_system_mix",
+    "llm_compatibility",
 )
 
 
-def _run_points(experiment, parameter_names, points, seeds, base_config, output_dir):
+def _model_config(config):
+    """Translate sweep-only keys (``num_llm_systems``) into model arguments."""
+    model_config = dict(config)
+    count = model_config.pop("num_llm_systems", None)
+    if count is not None:
+        if not 1 <= count <= len(LLM_SYSTEM_LABELS):
+            raise ValueError(
+                f"num_llm_systems must be from 1 through {len(LLM_SYSTEM_LABELS)}"
+            )
+        model_config["llm_systems"] = list(LLM_SYSTEM_LABELS[:count])
+    return model_config
+
+
+def _run_points(
+    experiment,
+    parameter_names,
+    points,
+    seeds,
+    base_config,
+    output_dir,
+    extra_aggregates=None,
+):
     """Run each parameter point with each seed and save raw and aggregate CSVs."""
     rows = []
     for point, seed in product(points, seeds):
@@ -33,7 +65,7 @@ def _run_points(experiment, parameter_names, points, seeds, base_config, output_
             **point,
             "random_seed": seed,
         }
-        model = BabelModel(**config)
+        model = BabelModel(**_model_config(config))
         model.run()
         rows.append(
             {
@@ -53,6 +85,7 @@ def _run_points(experiment, parameter_names, points, seeds, base_config, output_
             communication_success_rate_mean=("communication_success_rate", "mean"),
             communication_success_rate_std=("communication_success_rate", "std"),
             cooperation_events_mean=("cooperation_events", "mean"),
+            **(extra_aggregates or {}),
             number_of_runs=("random_seed", "count"),
         )
     )
@@ -73,7 +106,7 @@ def run_experiments(
     num_steps=50,
     values=None,
 ):
-    """Run selected one-factor sweeps and the two-factor figure grid."""
+    """Run selected one-factor sweeps, the two-factor grid, and LLM-system sweeps."""
     selected = tuple(experiments or EXPERIMENTS)
     unknown = set(selected) - set(EXPERIMENTS)
     if unknown:
@@ -114,6 +147,19 @@ def run_experiments(
             ],
             {"num_platforms": 2},
         ),
+        "llm_system_mix": (
+            ["num_llm_systems"],
+            [{"num_llm_systems": value} for value in sweep_values["llm_system_mix"]],
+            {"llm_cross_compatibility": LLM_MIX_CROSS_COMPATIBILITY},
+        ),
+        "llm_compatibility": (
+            ["llm_cross_compatibility"],
+            [
+                {"llm_cross_compatibility": value}
+                for value in sweep_values["llm_compatibility"]
+            ],
+            {"num_llm_systems": 2},
+        ),
     }
     outputs = {}
     for experiment in selected:
@@ -125,6 +171,7 @@ def run_experiments(
             seeds,
             {**fixed, **overrides},
             output_dir,
+            LLM_EXTRA_AGGREGATES if experiment.startswith("llm_") else None,
         )
     return outputs
 
@@ -151,6 +198,14 @@ def build_parser():
     parser.add_argument("--platform-values", default="1,2,5,10,20")
     parser.add_argument("--interoperability-values", default="0,0.25,0.5,0.75,1")
     parser.add_argument("--drift-values", default="0,0.01,0.05,0.1,0.25")
+    parser.add_argument(
+        "--llm-system-counts",
+        default="1,2,3",
+        help="Numbers of LLM systems for the homogeneous-vs-mixed experiment",
+    )
+    parser.add_argument(
+        "--llm-compatibility-values", default="0,0.25,0.5,0.75,1"
+    )
     return parser
 
 
@@ -164,6 +219,8 @@ def main(argv=None):
         "platform_proliferation": _parse_values(args.platform_values, int),
         "interoperability": _parse_values(args.interoperability_values, float),
         "drift": _parse_values(args.drift_values, float),
+        "llm_system_mix": _parse_values(args.llm_system_counts, int),
+        "llm_compatibility": _parse_values(args.llm_compatibility_values, float),
     }
     seeds = _parse_values(args.seeds, int)
     run_experiments(

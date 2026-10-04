@@ -34,7 +34,7 @@ def _save_errorbar(summary, x, y, xlabel, ylabel, path):
 
 
 def create_figures(results_dir="results"):
-    """Generate the five requested figures under ``results/figures``."""
+    """Generate the five core figures, plus LLM-system figures when available."""
     results_dir = Path(results_dir)
     figure_dir = results_dir / "figures"
     figure_dir.mkdir(parents=True, exist_ok=True)
@@ -105,6 +105,45 @@ def create_figures(results_dir="results"):
         dpi=300,
     )
     plt.close(figure)
+
+    llm_figures = (
+        (
+            "llm_system_mix",
+            "num_llm_systems",
+            "tower_progress",
+            "Number of LLM systems (cross-system compatibility fixed)",
+            "Tower progress",
+            "tower_progress_by_llm_system_mix.png",
+        ),
+        (
+            "llm_compatibility",
+            "llm_cross_compatibility",
+            "tower_progress",
+            "Cross-system LLM compatibility",
+            "Tower progress",
+            "tower_progress_by_llm_compatibility.png",
+        ),
+        (
+            "llm_compatibility",
+            "llm_cross_compatibility",
+            "cross_system_success_rate",
+            "Cross-system LLM compatibility",
+            "Cross-system communication success rate",
+            "cross_system_success_by_llm_compatibility.png",
+        ),
+    )
+    for experiment, x, y, xlabel, ylabel, filename in llm_figures:
+        if not (results_dir / f"{experiment}_summary.csv").exists():
+            print(f"Skipping {filename}: {experiment}_summary.csv not found")
+            continue
+        _save_errorbar(
+            _read_summary(results_dir, experiment),
+            x,
+            y,
+            xlabel,
+            ylabel,
+            figure_dir / filename,
+        )
     print(f"Figures saved to {figure_dir}")
     return figure_dir
 

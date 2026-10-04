@@ -2,9 +2,11 @@
 
 from mesa import Agent
 
+DEFAULT_LLM_SYSTEM_ID = "system_a"
+
 
 class BabelAgent(Agent):
-    """An agent with a categorical language and a platform convention."""
+    """An agent with a categorical language, platform convention, and LLM system."""
 
     def __init__(
         self,
@@ -13,8 +15,12 @@ class BabelAgent(Agent):
         platform_id,
         skill_level,
         cooperation_tendency,
+        llm_system_id=DEFAULT_LLM_SYSTEM_ID,
     ):
+        if not isinstance(llm_system_id, str) or not llm_system_id:
+            raise ValueError("llm_system_id must be a non-empty string")
         super().__init__(model)
+        self.llm_system_id = llm_system_id
         self.language_id = int(language_id)
         self.platform_id = int(platform_id)
         self.skill_level = float(skill_level)
