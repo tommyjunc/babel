@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 
 import networkx as nx
-import numpy as np
 import pandas as pd
 from mesa import Model
 
@@ -55,7 +54,7 @@ class BabelModel(Model):
             cooperation_tendency,
             topology,
         )
-        super().__init__(seed=random_seed)
+        super().__init__(rng=random_seed)
         self.num_agents = int(num_agents)
         self.num_steps = int(num_steps)
         self.num_platforms = int(num_platforms)
@@ -66,7 +65,6 @@ class BabelModel(Model):
         self.cooperation_tendency = float(cooperation_tendency)
         self.random_seed = int(random_seed)
         self.topology = topology
-        self.np_random = np.random.default_rng(self.random_seed)
         self.tower_progress = 0.0
         self.current_step = 0
         self.history = []
