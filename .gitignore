@@ -1,0 +1,7 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+results/*.csv
+results/*.png
+results/figures/
+.ipynb_checkpoints/
