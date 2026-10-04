@@ -35,6 +35,33 @@ Collective action depends in part on whether participants can communicate well e
 | `random_seed` | 42 | Seed for model, Python/Mesa, NumPy, and NetworkX randomness. |
 | `topology` | `small_world` | Network topology: `small_world` or `erdos_renyi`. |
 
+## Local setup on macOS (Positron)
+
+1. Open the repository root (`babel/`) in Positron, not only `src/` or `notebooks/`.
+2. In the Positron terminal, create and activate a Python 3.12 virtual environment:
+
+   ```bash
+   python3.12 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+3. Install the pinned dependencies (including `ipykernel` for notebooks):
+
+   ```bash
+   python -m pip install --upgrade pip
+   python -m pip install -r requirements.txt
+   ```
+
+4. Select `.venv/bin/python` as the Python interpreter and notebook kernel in Positron.
+5. Run the tests from the repository root:
+
+   ```bash
+   python -m pytest
+   ```
+
+6. Run the baseline, experiments, and visualization (below) from the repository root. Always use module execution, e.g. `python -m src.babel_model`, not `python src/babel_model.py`: the modules use relative imports and will fail if executed directly.
+7. Run the baseline and experiment commands **before** visualization, because visualization reads the CSV files they generate.
+
 ## Installation
 
 From the repository root, install the pinned dependencies:
